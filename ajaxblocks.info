@@ -1,4 +1,3 @@
-; $Id$
 
 name = Ajax Blocks
 description = Loads dynamic blocks on cached page for anonymous users by performing AJAX request.

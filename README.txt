@@ -1,4 +1,3 @@
-$Id$
 
 Ajax Blocks module
 
