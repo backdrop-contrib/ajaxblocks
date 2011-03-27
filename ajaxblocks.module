@@ -129,7 +129,7 @@ function ajaxblocks_ajax_handler() {
       }
       $parts = explode("-", $block_id, 2);
       $block_content = module_invoke($parts[0], 'block', 'view', $parts[1]);
-      $content[$block_id] = $block_content;
+      $content[$block_id] = array('content' => (isset($block_content['content']) ? $block_content['content'] : ''));
       $settings_new = array();
       $js = drupal_add_js(NULL, NULL, NULL);
       if (array_key_exists('header', $js)) {
