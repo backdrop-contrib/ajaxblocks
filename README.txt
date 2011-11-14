@@ -9,11 +9,12 @@ after loading the whole cached page itself. The module is suitable for sites whi
 and the page caching for anonymous users is a great benefit, but there are some pieces of information that have to be dynamic.
 
 The classical example is Ubercart sites which has to show the cart content in a block.
-The other example is showing random pictures or node links (from some view output which randomizes data).
+The other example is showing random pictures or liks to nodes (from some view output which randomizes data).
 
 The module is a fork of existing module: http://drupal.org/project/ajaxify_regions
 
-Ajaxified blocks are replaced by placeholders with the original block content wrapped by <noscript> tag during page preprocessing,
+Ajaxified blocks are replaced by placeholders with the original block content wrapped by <noscript> tag
+(including the original block contents is optional) during page preprocessing,
 and the resulting page can be cached. After page loading, the browser initiates one AJAX request which contains the information
 needed to evaluate contents of these blocks on the server side (the information includes block IDs and current page path).
 AJAX handler gets the actual (non-cached) block contents for this page and returns the result as JSON.

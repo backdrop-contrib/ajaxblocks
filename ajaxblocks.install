@@ -9,20 +9,59 @@
  * Implements hook_schema().
  */
 function ajaxblocks_schema() {
-  $schema['ajaxblock'] = array(
+  $schema = array();
+  $schema['ajaxblocks'] = array(
     'description' => 'Stores AJAX settings for blocks.',
     'fields' => array(
       'block_id' => array(
         'description' => 'The primary identifier for a block.',
         'type' => 'varchar',
         'length' => 255,
-        'not null' => TRUE),
+        'not null' => TRUE,
+      ),
       'is_ajax' => array(
         'description' => 'Boolean indicating whether the block is to be loaded via AJAX.',
         'type' => 'int',
         'not null' => TRUE,
-        'default' => 0),
+        'default' => 0,
       ),
+      'loader_picture' => array(
+        'description' => 'Loader picture index (0 - none).',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'is_late' => array(
+        'description' => 'Boolean indicating whether to use window.onload event.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'delay' => array(
+        'description' => 'Time to wait before block loading.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'include_noscript' => array(
+        'description' => 'Boolean indicating whether to include noscript tag.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'cached_roles' => array(
+        'description' => 'Roles for which the block is loaded via AJAX for cached pages.',
+        'type' => 'varchar',
+        'length' => 1000,
+        'default' => '1',
+      ),
+      'uncached_roles' => array(
+        'description' => 'Roles for which the block is loaded via AJAX for uncached pages.',
+        'type' => 'varchar',
+        'length' => 1000,
+        'default' => '',
+      ),
+    ),
     'primary key' => array('block_id'),
   );
 
@@ -31,17 +70,13 @@ function ajaxblocks_schema() {
 
 
 /**
- * Implements hook_install().
- */
-function ajaxblocks_install() {
-  drupal_install_schema('ajaxblocks');
-}
-
-
-/**
  * Implements hook_uninstall().
  */
 function ajaxblocks_uninstall() {
-  drupal_uninstall_schema('ajaxblocks');
-  cache_clear_all('ajaxblocks');
+  cache_clear_all('ajaxblocks', 'cache');
+}
+
+
+function ajaxblocks_update_last_removed() {
+  return 6102;
 }

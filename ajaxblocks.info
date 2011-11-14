@@ -1,6 +1,4 @@
-
 name = Ajax Blocks
 description = Loads dynamic blocks on cached page for anonymous users by performing AJAX request.
 package = Cache
-core = 6.x
-version = "6.x-1.0"
+core = "7.x"
