@@ -27,7 +27,7 @@ function ajaxblocks_menu() {
  */
 function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form_id) {
   // Retrieve current setting for this block.
-  $block_id = $form['module']['#value'] . '-' .  $form['delta']['#value'];
+  $block_id = $form['module']['#value'] . '-' . $form['delta']['#value'];
   $settings = array();
   $value = (int) ajaxblocks_is_ajax($block_id, $settings);
 
