@@ -225,7 +225,9 @@ function ajaxblocks_ajax_handler() {
   if (isset($_GET['blocks']) && isset($_GET['path'])) {
     // Set 'q' parameter in order to make arg() work correctly.
     $_GET['q'] = $_GET['path'];
-    //TODO Make request_uri() return corrected path.
+    $_REQUEST['q'] = $_GET['path'];
+    // Set $_SERVER variables in order to make request_uri() work correctly.
+    _ajaxblocks_fix_request_uri($_GET['path']);
 
     // Build the block content and return as json.
     $ajax_blocks = explode('/', $_GET['blocks']);
@@ -466,4 +468,15 @@ function _ajaxblocks_in_ajax_handler_impl($set = FALSE) {
  */
 function ajaxblocks_in_ajax_handler() {
   return _ajaxblocks_in_ajax_handler_impl();
+}
+
+
+/**
+ * Internal function which makes request_uri() return correct value when handling AJAX request.
+ */
+function _ajaxblocks_fix_request_uri($path) {
+  if (isset($_SERVER['REQUEST_URI'])) {
+    $_SERVER['REQUEST_URI'] = '/' . $path;
+  }
+  // TODO support other ways to fix request_uri().
 }
