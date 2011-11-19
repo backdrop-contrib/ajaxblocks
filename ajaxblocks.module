@@ -358,7 +358,7 @@ function ajaxblocks_preprocess_block(&$variables) {
   ajaxblocks_page_ajax_list($id, $settings);
   $noscript = '';
   if ($settings['include_noscript']) {
-    $noscript = '<script type="text/javascript"></script><noscript>' . $variables['block']->content . '</noscript>';
+    $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content'] . '</noscript>';
   }
   $wrapper_class = "ajaxblocks-wrapper";
   if ($settings['loader_picture']) {
