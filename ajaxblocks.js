@@ -49,7 +49,7 @@ $(document).ready(function () {
   }
 });
 
-$(window).load(function () {
+$(window).ready(function () {
   if (typeof Drupal.settings.ajaxblocks_late !== 'undefined') {
     Drupal.ajaxblocksSendRequest(Drupal.settings.ajaxblocks_late, Drupal.settings.ajaxblocks_late_delay);
   }
