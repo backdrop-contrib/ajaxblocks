@@ -419,6 +419,9 @@ function ajaxblocks_preprocess_html(&$variables) {
     unset($get_copy[$param]);
   }
   $get_params = drupal_http_build_query($get_copy);
+  if (strlen($get_params) > 0) {
+    $get_params = '&' . $get_params;
+  }
 
   if (count($block_ids) > 0) {
     drupal_add_js(array('ajaxblocks' => 'blocks=' . implode('/', $block_ids) . '&path=' . $_GET['q'] . $get_params), 'setting');
