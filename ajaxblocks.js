@@ -38,6 +38,7 @@ Drupal.ajaxblocksSetBlockContent = function (id, data) {
   var context = wrapper.parent();
   Drupal.detachBehaviors(context);
   if (!context) return;
+  $('#block-' + id).addClass('ajaxblocks-loaded');
   context.html(data['content']);
   if (data['ajaxblocks_settings']) $.extend(true, Drupal.settings, data['ajaxblocks_settings']);
   Drupal.attachBehaviors(context);
