@@ -47,7 +47,7 @@ function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form
     $form['visibility']['ajaxblocks']['ajaxblocks_warning'] = array(
       '#type' => 'markup',
       '#value' => t("Authcache module is installed. Please check <a href=\"@settings\">settings</a> and make sure it doesn't cache AJAX requests to page (Drupal path) 'ajaxblocks'.",
-        array('@setings' => url('admin/config/development/performance/authcache'))),
+        array('@settings' => url('admin/config/development/performance/authcache'))),
     );
   }
 
@@ -70,7 +70,7 @@ function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form
   $form['visibility']['ajaxblocks']['ajaxblocks_loader_picture'] = array(
     '#type' => 'radios',
     '#title' => t('Loader picture'),
-    '#description' => t('Choose the background picture for the block for AJAX loadding period.'),
+    '#description' => t('Choose the background picture for the block for AJAX loading period.'),
     '#options' => $pictures,
     '#default_value' => isset($settings['loader_picture']) ? $settings['loader_picture'] : 0,
   );
@@ -111,7 +111,7 @@ function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form
   $form['visibility']['ajaxblocks']['ajaxblocks_cached_roles'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Load the block on cached pages for these roles only'),
-    '#description' => t('Only anonymous role is necesary to be selected for most cases.'),
+    '#description' => t('Only anonymous role is necessary to be selected for most cases.'),
     '#options' => $all_roles,
     '#default_value' => isset($settings['cached_roles']) ? $settings['cached_roles'] : array(1),
   );
