@@ -35,8 +35,7 @@ function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form
   $form['visibility']['ajaxblocks'] = array(
     '#type' => 'fieldset',
     '#title' => t('AJAX settings'),
-    '#description' => t('The settings for loading the block via AJAX request made after the page loading. ' .
-      'This method is used for anonymous user only, and the whole page must be cached.'),
+    '#description' => t('The settings for loading the block via AJAX request made after the page loading. This method is used for anonymous user only, and the whole page must be cached.'),
     '#weight' => 60,
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
@@ -46,7 +45,7 @@ function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form
   if (module_exists('authcache')) {
     $form['visibility']['ajaxblocks']['ajaxblocks_warning'] = array(
       '#type' => 'markup',
-      '#value' => t("Authcache module is installed. Please check <a href=\"@settings\">settings</a> and make sure it doesn't cache AJAX requests to page (Drupal path) 'ajaxblocks'.",
+      '#value' => t('Authcache module is installed. Please check <a href="@settings">settings</a> and make sure it does not cache AJAX requests to page (Drupal path) "ajaxblocks".',
         array('@settings' => url('admin/config/development/performance/authcache'))),
     );
   }
@@ -54,7 +53,7 @@ function ajaxblocks_form_block_admin_configure_alter(&$form, &$form_state, $form
   $form['visibility']['ajaxblocks']['ajaxblocks_is_ajax'] = array(
     '#type' => 'select',
     '#title' => t('Load block via AJAX'),
-    '#description' => t("Select \"yes\" if this block has dynamic content and isn't displayed correctly on cached pages."),
+    '#description' => t("Select 'yes' if this block has dynamic content and isn't displayed correctly on cached pages."),
     '#options' => array(
       0 => t('no'),
       1 => t('yes'),
@@ -324,12 +323,11 @@ function ajaxblocks_page_cacheable() {
 function ajaxblocks_page_ajax_list($block_id = NULL, $settings = array()) {
   static $ajax_blocks = array();
 
-  if (is_null($block_id)) {
-    return $ajax_blocks;
-  }
-  else {
+  if (!is_null($block_id)) {
     $ajax_blocks[$block_id] = $settings;
   }
+
+  return $ajax_blocks;
 }
 
 
@@ -448,12 +446,11 @@ function ajaxblocks_help($path, $arg) {
     case 'admin/help#ajaxblocks':
       $output = '';
       $output .= '<h3>' . t('About') . '</h3>';
-      $output .= '<p>' . t('The AjaxBlocks module provides new settings for every block, which allow to choose the loading method ' .
-        'for this block content if the cached page is to be displayed for anonymous users:<br />' .
-        '1. within the page - the usual way for Drupal.<br />' .
-        '2. by additional AJAX request after loading the cached page.') . '</p>';
+      $output .= '<p>' . t('The AjaxBlocks module provides new settings for every block, which allow to choose the loading method for this block content if the cached page is to be displayed for anonymous users:<br />1. within the page - the usual way for Drupal.<br />2. by additional AJAX request after loading the cached page.') . '</p>';
       return $output;
   }
+
+  return NULL;
 }
 
 
