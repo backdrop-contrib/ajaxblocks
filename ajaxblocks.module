@@ -272,7 +272,8 @@ function ajaxblocks_ajax_handler() {
       if (array_key_exists('settings', $js)) {
         $settings_new = $js['settings']['data'];
       }
-      $settings_diff = array_diff_assoc($settings_new, $settings_old);
+      $array_mapping_func = (function_exists('drupal_array_diff_assoc_recursive')) ? 'drupal_array_diff_assoc_recursive' : 'array_diff_assoc';
+      $settings_diff = call_user_func_array($array_mapping_func, array($settings_new, $settings_old));
       $content[$block_id]['ajaxblocks_settings'] = '';
       if (count($settings_diff) > 0) {
         $content[$block_id]['ajaxblocks_settings'] = call_user_func_array('array_merge_recursive', $settings_diff);
