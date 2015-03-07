@@ -11,7 +11,7 @@ Drupal.ajaxblocksSendRequest = function (request, delay) {
     return;
   }
   $.ajax({
-    url: ((typeof Drupal.settings.ajaxblocks_path !== 'undefined') ? Drupal.settings.ajaxblocks_path : (Drupal.settings.basePath + "ajaxblocks")),
+    url: ((typeof Drupal.settings.ajaxblocks_path !== 'undefined') ? Drupal.settings.ajaxblocks_path : (Drupal.settings.basePath + Drupal.settings.pathPrefix + "ajaxblocks")),
     type: "GET",
     dataType: "json",
     data: request + '&nocache=1',
