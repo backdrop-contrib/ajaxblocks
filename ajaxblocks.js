@@ -1,17 +1,17 @@
 /**
  * @file
- * Loads content of blocks via AJAX just after page loading, updates Drupal.settings, reattaches behaviors.
+ * Loads content of blocks via AJAX just after page loading, updates Backdrop.settings, reattaches behaviors.
  */
 
 (function ($) {
 
-Drupal.ajaxblocksSendRequest = function (request, delay) {
+Backdrop.ajaxblocksSendRequest = function (request, delay) {
   if (delay) {
-    setTimeout(function () { Drupal.ajaxblocksSendRequest(request, 0); }, delay);
+    setTimeout(function () { Backdrop.ajaxblocksSendRequest(request, 0); }, delay);
     return;
   }
   $.ajax({
-    url: ((typeof Drupal.settings.ajaxblocks_path !== 'undefined') ? Drupal.settings.ajaxblocks_path : (Drupal.settings.basePath + Drupal.settings.pathPrefix + "ajaxblocks")),
+    url: ((typeof Backdrop.settings.ajaxblocks_path !== 'undefined') ? Backdrop.settings.ajaxblocks_path : (Backdrop.settings.basePath + Backdrop.settings.pathPrefix + "ajaxblocks")),
     type: "GET",
     dataType: "json",
     data: request + '&nocache=1',
@@ -19,18 +19,18 @@ Drupal.ajaxblocksSendRequest = function (request, delay) {
     success: function (data) {
       // Replaces the placeholder divs by the actual block contents returned by the AJAX call,
       // executes the extra JavaScript code and attach behaviours if the apply to the blocks.
-      Drupal.freezeHeight();
+      Backdrop.freezeHeight();
       for (var id in data) {
-        Drupal.ajaxblocksSetBlockContent(id, data[id]);
+        Backdrop.ajaxblocksSetBlockContent(id, data[id]);
       }
-      Drupal.unfreezeHeight();
+      Backdrop.unfreezeHeight();
     }
   });
 };
 
-Drupal.ajaxblocksSetBlockContent = function (id, data) {
+Backdrop.ajaxblocksSetBlockContent = function (id, data) {
   if (data['delay']) {
-    setTimeout(function () {data['delay'] = 0; Drupal.ajaxblocksSetBlockContent(id, data);}, data['delay']);
+    setTimeout(function () {data['delay'] = 0; Backdrop.ajaxblocksSetBlockContent(id, data);}, data['delay']);
     return;
   }
   var wrapper = $('#block-' + id + '-ajax-content');
@@ -38,27 +38,27 @@ Drupal.ajaxblocksSetBlockContent = function (id, data) {
     return;
   }
   var context = wrapper.parent();
-  Drupal.detachBehaviors(context);
+  Backdrop.detachBehaviors(context);
   if (!context) {
     return;
   }
   $('#block-' + id).addClass('ajaxblocks-loaded');
   context.html(data['content']);
   if (data['ajaxblocks_settings']) {
-    $.extend(true, Drupal.settings, data['ajaxblocks_settings']);
+    $.extend(true, Backdrop.settings, data['ajaxblocks_settings']);
   }
-  Drupal.attachBehaviors(context);
+  Backdrop.attachBehaviors(context);
 };
 
 $(document).ready(function () {
-  if (typeof Drupal.settings.ajaxblocks !== 'undefined') {
-    Drupal.ajaxblocksSendRequest(Drupal.settings.ajaxblocks, Drupal.settings.ajaxblocks_delay);
+  if (typeof Backdrop.settings.ajaxblocks !== 'undefined') {
+    Backdrop.ajaxblocksSendRequest(Backdrop.settings.ajaxblocks, Backdrop.settings.ajaxblocks_delay);
   }
 });
 
 $(window).load(function () {
-  if (typeof Drupal.settings.ajaxblocks_late !== 'undefined') {
-    Drupal.ajaxblocksSendRequest(Drupal.settings.ajaxblocks_late, Drupal.settings.ajaxblocks_late_delay);
+  if (typeof Backdrop.settings.ajaxblocks_late !== 'undefined') {
+    Backdrop.ajaxblocksSendRequest(Backdrop.settings.ajaxblocks_late, Backdrop.settings.ajaxblocks_late_delay);
   }
 });
 
