@@ -13,7 +13,7 @@ The other example is showing random pictures or links to nodes (from some view
 output which randomizes data).
 
 Ajaxified blocks are replaced by placeholders with the original block content
-wrapped by <noscript> tag (including the original block contents is optional)
+wrapped by `<noscript>` tag (including the original block contents is optional)
 during page preprocessing, and the resulting page can be cached. After page
 loading, the browser initiates one AJAX request which contains the information
 needed to evaluate contents of these blocks on the server side (the information

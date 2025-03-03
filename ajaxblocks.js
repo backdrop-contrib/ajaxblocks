@@ -33,7 +33,7 @@ Backdrop.ajaxblocksSetBlockContent = function (id, data) {
     setTimeout(function () {data['delay'] = 0; Backdrop.ajaxblocksSetBlockContent(id, data);}, data['delay']);
     return;
   }
-  var wrapper = $('#block-' + id + '-ajax-content');
+  var wrapper = $('#block-' + id.replace(/(\/|:|\.|\[|\]|,|=|@)/g, "\\$1") + '-ajax-content');
   if (!wrapper) {
     return;
   }
@@ -42,8 +42,9 @@ Backdrop.ajaxblocksSetBlockContent = function (id, data) {
   if (!context) {
     return;
   }
-  $('#block-' + id).addClass('ajaxblocks-loaded');
+  context.parent().addClass('ajaxblocks-loaded');
   context.html(data['content']);
+  console.log(context.val());
   if (data['ajaxblocks_settings']) {
     $.extend(true, Backdrop.settings, data['ajaxblocks_settings']);
   }
