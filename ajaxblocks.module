@@ -60,39 +60,38 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
   }
 
   $form['block_settings']['ajaxblocks']['is_ajax'] = array(
-    '#type' => 'select',
+    '#type' => 'radios',
     '#title' => t('Load block via AJAX'),
     '#description' => t("Select 'yes' if this block has dynamic content and isn't displayed correctly on cached pages."),
     '#options' => array(
-      0 => t('no'),
-      1 => t('yes'),
+      0 => t('No'),
+      1 => t('Yes'),
     ),
     '#default_value' => isset($settings['is_ajax']) ? $settings['is_ajax'] : 0,
   );
 
-  $picture_dir = base_path() . backdrop_get_path('module', 'ajaxblocks') . '/images/';
-  $pictures = array(0 => t('None'));
-  for ($i = 1; $i <= 8; $i++) {
-    $pictures[$i] = '<img alt="" src="' . $picture_dir . 'loader-' . $i . '.gif" />';
-  }
   $form['block_settings']['ajaxblocks']['loader_picture'] = array(
     '#type' => 'radios',
-    '#title' => t('Loader picture'),
-    '#description' => t('Choose the background picture for the block for AJAX loading period.'),
-    '#options' => $pictures,
+    '#title' => t('Loading throbber'),
+    '#description' => t('Choose to display a loading throbber while it is loading.'),
+    '#options' => array(
+      0 => t('No'),
+      1 => t('Yes'),
+    ),
     '#default_value' => isset($settings['loader_picture']) ? $settings['loader_picture'] : 0,
   );
 
   $form['block_settings']['ajaxblocks']['is_late'] = array(
-    '#type' => 'select',
+    '#type' => 'radios',
     '#title' => t('JavaScript event which initiates block loading'),
-    '#description' => t('Select "DOM.ready event" if you want to load the block as soon as possible (this makes better experience on cached pages).'),
     '#options' => array(
-      0 => t('DOM.ready event'),
-      1 => t('window.onload event'),
+      0 => t('As soon as possible'),
+      1 => t('After all assets are loaded'),
     ),
     '#default_value' => isset($settings['is_late']) ? $settings['is_late'] : 0,
   );
+  $form['block_settings']['ajaxblocks']['is_late'][0]['#description'] = t('Will load block as soon as possible using the DOM.ready event.');
+  $form['block_settings']['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until all assets (like web fonts, images) are loaded, using the window.onload event.');
 
   $form['block_settings']['ajaxblocks']['delay'] = array(
     '#type' => 'textfield',
@@ -104,15 +103,16 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
   );
 
   $form['block_settings']['ajaxblocks']['include_noscript'] = array(
-    '#type' => 'select',
+    '#type' => 'radios',
     '#title' => t('Include NOSCRIPT tag with original block content'),
-    '#description' => t('Original block content can be included in HTML code of the pages for browsers which do not support JavaScript. On cached pages, this content will be static.'),
     '#options' => array(
-      0 => t('no'),
-      1 => t('yes'),
+      0 => t('No'),
+      1 => t('Yes'),
     ),
     '#default_value' => isset($settings['include_noscript']) ? $settings['include_noscript'] : 1,
   );
+  $form['block_settings']['ajaxblocks']['include_noscript'][0]['#description'] = t('No fallback content if Javascript is not supported or disabled.');
+  $form['block_settings']['ajaxblocks']['include_noscript'][1]['#description'] = t('Original block content included in HTML code of the pages if JavaScript is not supported or disabled. On cached pages, this content will be static.');
 
   $all_roles = user_roles();
 
@@ -121,7 +121,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#title' => t('Load the block on cached pages for these roles only'),
     '#description' => t('Only anonymous role is necessary to be selected for most cases.'),
     '#options' => $all_roles,
-    '#default_value' => isset($settings['cached_roles']) ? $settings['cached_roles'] : array(1),
+    '#default_value' => isset($settings['cached_roles']) ? $settings['cached_roles'] : array('anonymous'),
   );
 
   $form['block_settings']['ajaxblocks']['uncached_roles'] = array(
@@ -143,15 +143,22 @@ function ajaxblocks_save_settings($form, &$form_state) {
     return;
   }
 
+  $config = config('ajaxblocks.settings');
+
   $class_name = get_class($form_state['block']);
   $module = $form_state['block']->module;
-  // $plugin = $form_state['block']->plugin;
   $delta = $form_state['block']->delta;
-  $uuid = isset($form_state['block']->uuid) ? $form_state['block']->uuid : NULL;
+  $uuid = isset($form_state['block']->uuid) ? $form_state['block']->uuid : '';
   $settings = $form_state['values']['block_settings']['ajaxblocks'];
   $settings['class_name'] = $class_name;
 
-  config_set('ajaxblocks.settings', $module . ':' . $delta . ':' . $uuid, $settings);
+  if (!empty($settings['is_ajax'])) {
+    $config->set($module . ':' . $delta . ':' . $uuid, $settings);
+  }
+  else {
+    $config->clear($module . ':' . $delta . ':' . $uuid);
+  }
+  $config->save();
 }
 
 /**
@@ -322,7 +329,7 @@ function ajaxblocks_page_cacheable() {
 }
 
 /**
- * Stores AJAX block IDs temporarily to pass them from ajaxblocks_preprocess_block() to ajaxblocks_preprocess_html().
+ * Stores AJAX block IDs temporarily to pass them from ajaxblocks_preprocess_block() to ajaxblocks_preprocess_page().
  */
 function ajaxblocks_page_ajax_list($block_id = NULL, $settings = array()) {
   static $ajax_blocks = array();
@@ -435,8 +442,6 @@ function ajaxblocks_preprocess_page(&$variables) {
       backdrop_add_js(array('ajaxblocks_delay_late' => $min_delay_late), 'setting');
     }
   }
-  // Rewrite page-level js.
-  $variables['scripts'] = backdrop_get_js();
 }
 
 /**

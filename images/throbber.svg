@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 300 300">
+  <path d="M 150,0
+    a 150,150 0 0,1 106,256
+    l -35,-35
+    a -100,-100 0 0,0 -70,-170 z"
+    fill="#7f7f7f">
+    <animateTransform attributeName="transform" attributeType="XML"
+      type="rotate" from="0 150 150" to="360 150 150"
+      begin="0s" dur="1s" fill="freeze" repeatCount="indefinite" />
+  </path>
+</svg>

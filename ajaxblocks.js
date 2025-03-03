@@ -44,7 +44,7 @@ Backdrop.ajaxblocksSetBlockContent = function (id, data) {
   }
   context.parent().addClass('ajaxblocks-loaded');
   context.html(data['content']);
-  console.log(context.val());
+
   if (data['ajaxblocks_settings']) {
     $.extend(true, Backdrop.settings, data['ajaxblocks_settings']);
   }
