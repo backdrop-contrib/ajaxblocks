@@ -11,8 +11,8 @@
 function ajaxblocks_menu() {
   $items = array();
   $items['ajaxblocks'] = array(
-    'title' => 'Ajax blocks',
     'page callback' => 'ajaxblocks_ajax_handler',
+    'delivery callback' => 'ajaxblock_deliver',
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
   );
@@ -29,6 +29,22 @@ function ajaxblocks_config_info() {
     'group' => t('Configuration'),
   );
   return $prefixes;
+}
+
+/**
+ * Implements hook_library_info().
+ *
+ */
+function ajaxblocks_library_info() {
+  $libraries['htmx'] = array(
+    'title' => 'HTMX',
+    'website' => 'http://htmx.org',
+    'version' => '2.0.4',
+    'js' => array(
+      backdrop_get_path('module', 'ajaxblocks') . '/js/htmx.min.js' => array(),
+    ),
+  );
+  return $libraries;
 }
 
 /**
@@ -86,12 +102,12 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#title' => t('JavaScript event which initiates block loading'),
     '#options' => array(
       0 => t('As soon as possible'),
-      1 => t('After all assets are loaded'),
+      1 => t('When block is in view'),
     ),
     '#default_value' => isset($settings['is_late']) ? $settings['is_late'] : 0,
   );
-  $form['block_settings']['ajaxblocks']['is_late'][0]['#description'] = t('Will load block as soon as possible using the DOM.ready event.');
-  $form['block_settings']['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until all assets (like web fonts, images) are loaded, using the window.onload event.');
+  $form['block_settings']['ajaxblocks']['is_late'][0]['#description'] = t('Will load block as soon as the page is loaded.');
+  $form['block_settings']['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until the block is revealed in the viewport.');
 
   $form['block_settings']['ajaxblocks']['delay'] = array(
     '#type' => 'textfield',
@@ -100,6 +116,14 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#title' => t('Time in milliseconds to wait before block loading'),
     '#description' => t('You can defer block loading and create interesting effects if necessary.'),
     '#default_value' => isset($settings['delay']) ? intval($settings['delay']) : 0,
+  );
+
+  $form['block_settings']['ajaxblocks']['reload'] = array(
+    '#type' => 'select',
+    '#title' => t('Reload'),
+    '#description' => t('Choose to reload the block every few seconds.'),
+    '#options' => array(0 => t('Never')) + backdrop_map_assoc(array(5, 10, 20, 60, 300, 1800, 3600), 'format_interval'),
+    '#default_value' => isset($settings['reload']) ? $settings['reload'] : 0,
   );
 
   $form['block_settings']['ajaxblocks']['include_noscript'] = array(
@@ -164,6 +188,11 @@ function ajaxblocks_save_settings($form, &$form_state) {
 /**
  * Returns TRUE if the block is configured to be loaded via AJAX.
  * Block specific settings are also returned.
+ *
+ * @param string $block_id
+ * @param array $settings
+ *
+ * @return bool
  */
 function ajaxblocks_is_ajax($block_id, &$settings) {
   static $ajax_blocks = NULL;
@@ -181,111 +210,86 @@ function ajaxblocks_is_ajax($block_id, &$settings) {
 
 /**
  * Handles AJAX request and returns the content of the appropriate blocks.
+ *
+ * @return string
  */
 function ajaxblocks_ajax_handler() {
+  $block_id = $_GET['block_id'] ?? NULL;
+  $class_name = $_GET['block_class_name'] ?? NULL;
+  if (!$block_id) {
+    return '';
+  }
   // Disable client-side caching.
   header('Cache-Control: private, no-cache, no-store, must-revalidate, max-age=0');
   header('Pragma: no-cache');
-  // Disable server-side caching.
+  // Disable page caching.
   backdrop_page_is_cacheable(FALSE);
 
-  _ajaxblocks_in_ajax_handler_impl(TRUE);
-  $content = array();
-  $delays = array();
-  $min_delay = 1000000;
-  //$current_user_rids = $GLOBALS['user']->roles;
-  if (isset($_GET['blocks']) && isset($_GET['path'])) {
-    // Set 'q' parameter in order to make arg() work correctly.
-    $_GET['q'] = $_GET['path'];
-    $_REQUEST['q'] = $_GET['path'];
-    // Set $_SERVER variables in order to make request_uri() work correctly.
-    _ajaxblocks_fix_request_uri($_GET['path']);
-
-    // Build the block content and return as json.
-    $ajax_blocks = explode('/', $_GET['blocks']);
-    unset($_GET['blocks']);
-    unset($_GET['path']);
-    unset($_GET['nocache']);
-    $block_settings = array();
-    foreach ($ajax_blocks as $block_id) {
-      if (!ajaxblocks_is_ajax($block_id, $block_settings)) {
-        continue;
-      }
-      // Don't return blocks which are not enabled for the current user.
-      // TODO Check permissions fully.
-      // if ((count($block_settings['role_permission']) > 0) && (count(array_intersect($current_user_rids, $block_settings['role_permission'])) == 0)) {
-      //   continue;
-      // }
-      $delay = intval($block_settings['delay']);
-      $delays[$block_id] = $delay;
-      if ($min_delay > $delay) {
-        $min_delay = $delay;
-      }
-      // Backdrop.settings can be changed by the block construction code. The handler returns the settings difference to the client.
-      $settings_old = array();
-      $js = backdrop_add_js();
-      if (array_key_exists('settings', $js)) {
-        $settings_old = $js['settings']['data'];
-      }
-      $parts = explode(":", $block_id);
-      $block = new stdClass();
-      $block->module = $parts[0];
-      $block->delta = $parts[1];
-      $infos = module_invoke($block->module, 'block_info');
-      $block = _ajaxblocks_block($block->module, $block->delta, $infos[$block->delta]);
-      // @todo only works with legacy blocks, so not Views blocks or even text blocks.
-      if ($block_settings['class_name'] == 'BlockLegacy') {
-        $block = new BlockLegacy($block->module . ':' . $block->delta, array());
-      }
-      else {
-        $block = new $block->class($block->module . ':' . $block->delta, array());
-      }
-      $block->prepare();
-      // $block_content = module_invoke($block->module, 'block_view', $block->delta);
-      $block_content = $block->getContent();
-
-      if (is_string($block_content)) {
-        $block_content = array(
-          '#markup' => $block_content,
-        );
-      }
-
-      $data = array(
-        'title' => $block->getTitle(),
-        'content' => $block_content,
-      );
-
-      // Allow modules to modify the block before it is viewed, via either
-      // hook_block_view_alter() or hook_block_view_MODULE_DELTA_alter().
-      backdrop_alter(array('block_view', "block_view_{$block->module}_" . str_replace('-', '_', $block->delta)), $data, $block);
-      $content[$block_id] = array(
-        'content' => $data['content']['#markup'],
-      );
-
-      $settings_new = array();
-      $js = backdrop_add_js();
-      if (array_key_exists('settings', $js)) {
-        $settings_new = $js['settings']['data'];
-      }
-      $array_mapping_func = (function_exists('backdrop_array_diff_assoc_recursive')) ? 'backdrop_array_diff_assoc_recursive' : 'array_diff_assoc';
-      $settings_diff = call_user_func_array($array_mapping_func, array($settings_new, $settings_old));
-      $content[$block_id]['ajaxblocks_settings'] = '';
-      if (count($settings_diff) > 0) {
-        $content[$block_id]['ajaxblocks_settings'] = call_user_func_array('array_merge_recursive', $settings_diff);
-      }
-    }
+  $parts = explode(":", $block_id);
+  $block = new stdClass();
+  $block->module = $parts[0];
+  $block->delta = $parts[1];
+  $infos = module_invoke($block->module, 'block_info');
+  $block = _ajaxblocks_block($block->module, $block->delta, $infos[$block->delta]);
+  if ($class_name == 'BlockLegacy') {
+    $block = new BlockLegacy($block->module . ':' . $block->delta, array());
   }
-  foreach ($delays as $block_id => $delay) {
-    $delay -= $min_delay;
-    if ($delay > 0) {
-      $content[$block_id]['delay'] = $delay;
-    }
+  else {
+    $block = new $block->class($block->module . ':' . $block->delta, array());
   }
-  backdrop_json_output($content);
+  $block->prepare();
+
+  $block_content = $block->getContent();
+
+  if (is_string($block_content)) {
+    $block_content = array(
+      '#markup' => $block_content,
+    );
+  }
+
+  // @todo how to render the title - pass to the theme layer again?
+  $data = array(
+    'title' => $block->getTitle(),
+    'content' => $block_content,
+  );
+
+  // Allow modules to modify the block before it is viewed, via either
+  // hook_block_view_alter() or hook_block_view_MODULE_DELTA_alter().
+  backdrop_alter(array('block_view', "block_view_{$block->module}_" . str_replace('-', '_', $block->delta)), $data, $block);
+
+  $rendered = backdrop_render($data['content']);
+  return $rendered;
+}
+
+/**
+ * Delivery callback for block results.
+ *
+ * @see ajaxblocks_ajax_handler()
+ */
+function ajaxblock_deliver($page_callback_result) {
+  backdrop_add_http_header('Content-Type', 'text/html; charset=utf-8');
+
+  // Send appropriate language header for browsers.
+  global $language;
+  backdrop_add_http_header('Content-Language', $language->langcode);
+
+  // The page callback is always ajaxblocks_ajax_handler(), which always returns
+  // a string, and is only accessed when the user actually has access to it.
+  // Therefore, we do not care for the other possible page callback results.
+  print $page_callback_result;
+
+  // Perform end-of-request tasks. The page cache is created here.
+  backdrop_page_footer();
 }
 
 /**
  * Helper to create a pretty block object from a moddelta.
+ *
+ * @param string $module
+ * @param string $delta
+ * @param array|null $info
+ *
+ * @return object
  */
 function _ajaxblocks_block($module, $delta, $info = NULL) {
   if (!$info) {
@@ -304,6 +308,8 @@ function _ajaxblocks_block($module, $delta, $info = NULL) {
 /**
  * Returns TRUE if current page will be cached (for anonymous or for authenticated users)
  * by Backdrop core or by contrib modules (boost and authcache are supported).
+ *
+ * @return bool
  */
 function ajaxblocks_page_cacheable() {
   static $page_cacheable = NULL;
@@ -329,26 +335,9 @@ function ajaxblocks_page_cacheable() {
 }
 
 /**
- * Stores AJAX block IDs temporarily to pass them from ajaxblocks_preprocess_block() to ajaxblocks_preprocess_page().
- */
-function ajaxblocks_page_ajax_list($block_id = NULL, $settings = array()) {
-  static $ajax_blocks = array();
-
-  if (!is_null($block_id)) {
-    $ajax_blocks[$block_id] = $settings;
-  }
-
-  return $ajax_blocks;
-}
-
-/**
  * Implements hook_preprocess_block().
  */
 function ajaxblocks_preprocess_block(&$variables) {
-  if (ajaxblocks_in_ajax_handler()) {
-    return;
-  }
-
   $id = $variables['block']->module . ':' . $variables['block']->delta . ':' . $variables['block']->uuid;
   $settings = array();
   if (!ajaxblocks_is_ajax($id, $settings)) {
@@ -367,7 +356,6 @@ function ajaxblocks_preprocess_block(&$variables) {
     }
   }
 
-  ajaxblocks_page_ajax_list($id, $settings);
   $noscript = '';
   if ($settings['include_noscript']) {
     $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content']['#markup'] . '</noscript>';
@@ -377,6 +365,25 @@ function ajaxblocks_preprocess_block(&$variables) {
     $wrapper_class = "ajaxblocks-wrapper-" . intval($settings['loader_picture']);
   }
 
+  $trigger_vals = array();
+  if ($settings['is_late']) {
+    $trigger_vals[] = 'revealed';
+  }
+  else {
+    $trigger_vals[] = 'load';
+  }
+  if ($settings['reload']) {
+    $trigger_vals[] = 'every ' . $settings['reload'] . 's';
+  }
+
+  $variables['attributes']['hx-get'] = '/ajaxblocks';
+  $variables['attributes']['hx-swap'] = 'innerHTML';
+  $variables['attributes']['hx-trigger'] = implode(', ', $trigger_vals);
+  $variables['attributes']['hx-vals'] = json_encode(array(
+    'block_id' => $id,
+    'block_class_name' => $settings['class_name'],
+  ));
+
   $variables['content']['#markup'] = '<div id="block-' . $id . '-ajax-content" class="' . $wrapper_class . '">' . $noscript . '</div>';
 }
 
@@ -384,91 +391,5 @@ function ajaxblocks_preprocess_block(&$variables) {
  * Implements hook_preprocess_page().
  */
 function ajaxblocks_preprocess_page(&$variables) {
-  $ajax_blocks = ajaxblocks_page_ajax_list();
-  if (count($ajax_blocks) == 0) {
-    return;
-  }
-  backdrop_add_js(backdrop_get_path('module', 'ajaxblocks') . '/ajaxblocks.js');
-  $path = url('ajaxblocks');
-  if ($path !== base_path() . 'ajaxblocks') {
-    // Provide path for AJAX handler directly in non-trivial cases (for instance, language prefix).
-    backdrop_add_js(array('ajaxblocks_path' => $path), 'setting');
-  }
-  $block_ids = array();
-  $block_ids_late = array();
-  $min_delay = 1000000;
-  $min_delay_late = 1000000;
-  $use_loader_picture = FALSE;
-  foreach ($ajax_blocks as $block_id => $settings) {
-    if ($settings['is_late']) {
-      $block_ids_late[] = $block_id;
-      if ($min_delay_late > $settings['delay']) {
-        $min_delay_late = intval($settings['delay']);
-      }
-    }
-    else {
-      $block_ids[] = $block_id;
-      if ($min_delay > $settings['delay']) {
-        $min_delay = intval($settings['delay']);
-      }
-    }
-    if ($settings['loader_picture'] > 0) {
-      $use_loader_picture = TRUE;
-    }
-  }
-  if ($use_loader_picture) {
-    backdrop_add_css(backdrop_get_path('module', 'ajaxblocks') . '/ajaxblocks.css');
-    $variables['styles'] = backdrop_get_css();
-  }
-  $get_copy = $_GET;
-  $params_to_exclude = array('q', 'blocks', 'path');
-  foreach ($params_to_exclude as $param) {
-    unset($get_copy[$param]);
-  }
-  $get_params = backdrop_http_build_query($get_copy);
-  if (strlen($get_params) > 0) {
-    $get_params = '&' . $get_params;
-  }
-
-  if (count($block_ids) > 0) {
-    backdrop_add_js(array('ajaxblocks' => 'blocks=' . implode('/', $block_ids) . '&path=' . $_GET['q'] . $get_params), 'setting');
-    if ($min_delay > 0) {
-      backdrop_add_js(array('ajaxblocks_delay' => $min_delay), 'setting');
-    }
-  }
-  if (count($block_ids_late) > 0) {
-    backdrop_add_js(array('ajaxblocks_late' => 'blocks=' . implode('/', $block_ids_late) . '&path=' . $_GET['q'] . $get_params), 'setting');
-    if ($min_delay_late > 0) {
-      backdrop_add_js(array('ajaxblocks_delay_late' => $min_delay_late), 'setting');
-    }
-  }
-}
-
-/**
- * Internal function which sets and returns the flag indicating whether current operation is block loading via AJAX.
- */
-function _ajaxblocks_in_ajax_handler_impl($set = FALSE) {
-  static $in_ajax_handler = FALSE;
-  if ($set) {
-    $in_ajax_handler = TRUE;
-  }
-  return $in_ajax_handler;
-}
-
-/**
- * Returns TRUE if current operation is block loading via AJAX.
- * May be used by other modules in hook_block() implementations to decide what version of block to return.
- */
-function ajaxblocks_in_ajax_handler() {
-  return _ajaxblocks_in_ajax_handler_impl();
-}
-
-/**
- * Internal function which makes request_uri() return correct value when handling AJAX request.
- */
-function _ajaxblocks_fix_request_uri($path) {
-  if (isset($_SERVER['REQUEST_URI'])) {
-    $_SERVER['REQUEST_URI'] = '/' . $path;
-  }
-  // TODO support other ways to fix request_uri().
+  backdrop_add_library('ajaxblocks', 'htmx', TRUE);
 }

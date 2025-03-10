@@ -7,4 +7,5 @@ type = module
 tags[] = cache
 tags[] = block
 tags[] = ajax
+tags[] = htmx
 tags[] = dynamic
