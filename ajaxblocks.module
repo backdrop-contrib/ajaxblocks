@@ -56,7 +56,6 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
   $block = $form_state['block'];
   $settings = config_get('ajaxblocks.settings', $block->module . ':' . $block->delta . ':' . $block->uuid);
 
-  // AJAX settings fieldset.
   $form['block_settings']['ajaxblocks'] = array(
     '#type' => 'fieldset',
     '#title' => t('AJAX settings'),
@@ -84,17 +83,6 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
       1 => t('Yes'),
     ),
     '#default_value' => isset($settings['is_ajax']) ? $settings['is_ajax'] : 0,
-  );
-
-  $form['block_settings']['ajaxblocks']['loader_picture'] = array(
-    '#type' => 'radios',
-    '#title' => t('Loading throbber'),
-    '#description' => t('Choose to display a loading throbber while it is loading.'),
-    '#options' => array(
-      0 => t('No'),
-      1 => t('Yes'),
-    ),
-    '#default_value' => isset($settings['loader_picture']) ? $settings['loader_picture'] : 0,
   );
 
   $form['block_settings']['ajaxblocks']['is_late'] = array(
@@ -126,18 +114,6 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['reload']) ? $settings['reload'] : 0,
   );
 
-  $form['block_settings']['ajaxblocks']['include_noscript'] = array(
-    '#type' => 'radios',
-    '#title' => t('Include NOSCRIPT tag with original block content'),
-    '#options' => array(
-      0 => t('No'),
-      1 => t('Yes'),
-    ),
-    '#default_value' => isset($settings['include_noscript']) ? $settings['include_noscript'] : 1,
-  );
-  $form['block_settings']['ajaxblocks']['include_noscript'][0]['#description'] = t('No fallback content if Javascript is not supported or disabled.');
-  $form['block_settings']['ajaxblocks']['include_noscript'][1]['#description'] = t('Original block content included in HTML code of the pages if JavaScript is not supported or disabled. On cached pages, this content will be static.');
-
   $all_roles = user_roles();
 
   $form['block_settings']['ajaxblocks']['cached_roles'] = array(
@@ -160,7 +136,8 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
 }
 
 /**
- * Additional submit handler for block settings form. Saves AJAX settings for the block.
+ * Additional submit handler for block settings form.
+ * Saves AJAX settings for the block.
  */
 function ajaxblocks_save_settings($form, &$form_state) {
   if (!isset($form_state['values']['block_settings'])) {
@@ -247,7 +224,6 @@ function ajaxblocks_ajax_handler() {
     );
   }
 
-  // @todo how to render the title - pass to the theme layer again?
   $data = array(
     'title' => $block->getTitle(),
     'content' => $block_content,
@@ -257,8 +233,8 @@ function ajaxblocks_ajax_handler() {
   // hook_block_view_alter() or hook_block_view_MODULE_DELTA_alter().
   backdrop_alter(array('block_view', "block_view_{$block->module}_" . str_replace('-', '_', $block->delta)), $data, $block);
 
-  $rendered = backdrop_render($data['content']);
-  return $rendered;
+  // Only updating the block content, ignore the title.
+  return backdrop_render($data['content']);
 }
 
 /**
@@ -356,15 +332,6 @@ function ajaxblocks_preprocess_block(&$variables) {
     }
   }
 
-  $noscript = '';
-  if ($settings['include_noscript']) {
-    $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content']['#markup'] . '</noscript>';
-  }
-  $wrapper_class = "ajaxblocks-wrapper";
-  if ($settings['loader_picture']) {
-    $wrapper_class = "ajaxblocks-wrapper-" . intval($settings['loader_picture']);
-  }
-
   $trigger_vals = array();
   if ($settings['is_late']) {
     $trigger_vals[] = 'revealed';
@@ -377,14 +344,13 @@ function ajaxblocks_preprocess_block(&$variables) {
   }
 
   $variables['attributes']['hx-get'] = '/ajaxblocks';
-  $variables['attributes']['hx-swap'] = 'innerHTML';
+  $variables['attributes']['hx-target'] = 'find .block-content';
   $variables['attributes']['hx-trigger'] = implode(', ', $trigger_vals);
   $variables['attributes']['hx-vals'] = json_encode(array(
     'block_id' => $id,
     'block_class_name' => $settings['class_name'],
   ));
 
-  $variables['content']['#markup'] = '<div id="block-' . $id . '-ajax-content" class="' . $wrapper_class . '">' . $noscript . '</div>';
 }
 
 /**
