@@ -144,22 +144,71 @@ function ajaxblocks_save_settings($form, &$form_state) {
     return;
   }
 
-  $config = config('ajaxblocks.settings');
+  /* @var Layout $layout */
+  $layout = &$form_state['layout'];
 
-  $class_name = get_class($form_state['block']);
-  $module = $form_state['block']->module;
-  $delta = $form_state['block']->delta;
-  $uuid = isset($form_state['block']->uuid) ? $form_state['block']->uuid : '';
   $settings = $form_state['values']['block_settings']['ajaxblocks'];
-  $settings['class_name'] = $class_name;
+
+  $settings['class_name'] = get_class($form_state['block']);
+  $settings['module'] = $form_state['block']->module;
+  $settings['delta'] = $form_state['block']->delta;
+  $settings['uuid'] = isset($form_state['block']->uuid) ? $form_state['block']->uuid : '';
+  $block_id = $settings['module'] . ':' . $settings['delta'] . ':' . $settings['uuid'];
+  $settings['layout'] = $layout->name;
 
   if (!empty($settings['is_ajax'])) {
-    $config->set($module . ':' . $delta . ':' . $uuid, $settings);
+    tempstore_set('ajaxblock', $block_id, $settings, 604800);
   }
   else {
-    $config->clear($module . ':' . $delta . ':' . $uuid);
+    tempstore_clear('ajaxblock', $block_id);
   }
-  $config->save();
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function ajaxblocks_form_layout_content_form_alter(&$form, &$form_state) {
+  $form['actions']['submit']['#submit'][] = 'ajaxblocks_layout_content_form_submit';
+}
+
+
+/**
+ * Submit handler
+ *
+ * @see ajaxblocks_form_layout_content_form_alter()
+ */
+function ajaxblocks_layout_content_form_submit($form, &$form_state) {
+  $config = config('ajaxblocks.settings');
+
+  /* @var Layout $layout */
+  $layout = &$form_state['layout'];
+
+  $layout_block_uuids = array_keys($layout->content);
+
+  $layout_temp = tempstore_get('layout.layout', $layout->name);
+
+  if (!$layout_temp) {
+    foreach ($layout->content as $uuid => $block) {
+      $block_id = $block->plugin . ':' . $uuid;
+      $block_temp_settings = tempstore_get('ajaxblock', $block_id);
+      if ($block_temp_settings) {
+        $config->set($block_id, $block_temp_settings);
+        tempstore_clear('ajaxblock', $block_id);
+      }
+    }
+
+    $data = $config->getData();
+    foreach ($data as $block_id => $block_settings) {
+      if (isset($block_settings['layout']) && $block_settings['layout'] == $layout->name) {
+        // Remove any blocks that are no longer in the layout.
+        if (!in_array($block_settings['uuid'], $layout_block_uuids)) {
+          $config->clear($block_id);
+        }
+      }
+    }
+
+    $config->save();
+  }
 }
 
 /**
