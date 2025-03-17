@@ -4,6 +4,8 @@ package = Cache
 backdrop = 1.x
 type = module
 
+dependencies[] = htmx
+
 tags[] = cache
 tags[] = block
 tags[] = ajax
