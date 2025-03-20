@@ -24,7 +24,7 @@ function ajaxblocks_menu() {
  * Implements hook_config_info().
  */
 function ajaxblocks_config_info() {
-  $prefixes['jaxblocks.settings'] = array(
+  $prefixes['ajaxblocks.settings'] = array(
     'label' => t('Ajax Blocks settings'),
     'group' => t('Configuration'),
   );
