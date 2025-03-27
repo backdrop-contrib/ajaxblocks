@@ -154,7 +154,6 @@ function ajaxblocks_form_layout_content_form_alter(&$form, &$form_state) {
   $form['actions']['submit']['#submit'][] = 'ajaxblocks_layout_content_form_submit';
 }
 
-
 /**
  * Submit handler
  *
@@ -364,7 +363,9 @@ function ajaxblocks_preprocess_block(&$variables) {
   ));
   // Add an indicator. Need to replace the content since the point is to show
   // fresh content and not the default, possibly cached, content.
-  $variables['content']['#markup'] = '<img class="ajaxblocks-throbber" src="'. backdrop_get_path('module', 'ajaxblocks') . '/images/throbber.svg"/>';
+  $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content']['#markup'] . '</noscript>';
+  $throbber = '<img class="ajaxblocks-throbber js-show" src="'. backdrop_get_path('module', 'ajaxblocks') . '/images/throbber.svg"/>';
+  $variables['content']['#markup'] = $noscript . $throbber;
 }
 
 /**
