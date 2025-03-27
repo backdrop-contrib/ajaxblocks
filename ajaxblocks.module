@@ -71,7 +71,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
 
   $form['block_settings']['ajaxblocks']['is_late'] = array(
     '#type' => 'radios',
-    '#title' => t('JavaScript event which initiates block loading'),
+    '#title' => t('When to load the block'),
     '#options' => array(
       0 => t('As soon as possible'),
       1 => t('When block is in view'),
@@ -82,11 +82,10 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
   $form['block_settings']['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until the block is revealed in the viewport.');
 
   $form['block_settings']['ajaxblocks']['delay'] = array(
-    '#type' => 'textfield',
-    '#size' => 6,
-    '#maxlength' => 6,
-    '#title' => t('Time in milliseconds to wait before block loading'),
-    '#description' => t('You can defer block loading and create interesting effects if necessary.'),
+    '#type' => 'number',
+    '#min' => 0,
+    '#title' => t('Time in seconds to wait before block loading'),
+    '#description' => t('You can further defer block loading by a set time.'),
     '#default_value' => isset($settings['delay']) ? intval($settings['delay']) : 0,
   );
 
@@ -345,16 +344,17 @@ function ajaxblocks_preprocess_block(&$variables) {
   }
 
   $trigger_vals = array();
-  if ($settings['is_late']) {
-    $trigger_vals[] = 'revealed';
+  $delay = !empty($settings['delay']) ? ' delay:' . $settings['delay'] . 's' : '';
+  $trigger_vals[] = 'load' . $delay;
+  if ($settings['is_late'] == 1) {
+    $trigger_vals[] = 'revealed' . $delay;
   }
-  else {
-    $trigger_vals[] = 'load';
-  }
+
   if ($settings['reload']) {
     $trigger_vals[] = 'every ' . $settings['reload'] . 's';
   }
 
+  $variables['classes'][] = 'ajaxblocks';
   $variables['attributes']['hx-get'] = '/ajaxblocks';
   $variables['attributes']['hx-target'] = 'find .block-content';
   $variables['attributes']['hx-trigger'] = implode(', ', $trigger_vals);
@@ -362,7 +362,9 @@ function ajaxblocks_preprocess_block(&$variables) {
     'block_id' => $id,
     'block_class_name' => $settings['class_name'],
   ));
-
+  // Add an indicator. Need to replace the content since the point is to show
+  // fresh content and not the default, possibly cached, content.
+  $variables['content']['#markup'] = '<img class="ajaxblocks-throbber" src="'. backdrop_get_path('module', 'ajaxblocks') . '/images/throbber.svg"/>';
 }
 
 /**
@@ -370,4 +372,5 @@ function ajaxblocks_preprocess_block(&$variables) {
  */
 function ajaxblocks_preprocess_page(&$variables) {
   backdrop_add_library('htmx', 'htmx', TRUE);
+  backdrop_add_css(backdrop_get_path('module', 'ajaxblocks') . '/css/ajaxblocks.css');
 }
