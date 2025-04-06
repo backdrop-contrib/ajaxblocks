@@ -21,44 +21,43 @@ function ajaxblocks_menu() {
 }
 
 /**
- * Implements hook_config_info().
- */
-function ajaxblocks_config_info() {
-  $prefixes['ajaxblocks.settings'] = array(
-    'label' => t('Ajax Blocks settings'),
-    'group' => t('Configuration'),
-  );
-  return $prefixes;
-}
-
-/**
  * Implements hook_form_FORM_ID_alter().
  * Adds AJAX settings to the block configure page.
  */
 function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state) {
-  // Retrieve current setting for this block.
-  $block = $form_state['block'];
-  $settings = config_get('ajaxblocks.settings', $block->module . ':' . $block->delta . ':' . $block->uuid);
-
-  $form['block_settings']['ajaxblocks'] = array(
+  $form['ajaxblocks'] = array(
     '#type' => 'fieldset',
     '#title' => t('Renew content settings'),
     '#description' => t('The settings for renewing the block content via HTMX.'),
-    '#weight' => 60,
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
-    '#group' => 'visibility',
+    '#tree' => TRUE,
   );
 
+  if (($form_state['block']->module == 'system' && $form_state['block']->delta == 'main')) {
+    $form['ajaxblocks']['#collapsed'] = FALSE;
+    $form['ajaxblocks']['no'] = array(
+      '#type' => 'markup',
+      '#markup' => t('The main page content block cannot be renewed.'),
+    );
+    return;
+  }
+
+  $settings = array();
+  if (isset($form_state['block']->settings['ajaxblocks'])) {
+    $settings = $form_state['block']->settings['ajaxblocks'];
+    $form['ajaxblocks']['#collapsed'] = FALSE;
+  }
+
   if (module_exists('authcache')) {
-    $form['block_settings']['ajaxblocks']['warning'] = array(
+    $form['ajaxblocks']['warning'] = array(
       '#type' => 'markup',
       '#value' => t('Authcache module is installed. Please check <a href="@settings">settings</a> and make sure it does not cache AJAX requests to page (Backdrop path) "ajaxblocks".',
         array('@settings' => url('admin/config/development/performance/authcache'))),
     );
   }
 
-  $form['block_settings']['ajaxblocks']['is_ajax'] = array(
+  $form['ajaxblocks']['is_ajax'] = array(
     '#type' => 'radios',
     '#title' => t('Load block via AJAX'),
     '#description' => t("Select 'yes' if this block has dynamic content and isn't displayed correctly on cached pages."),
@@ -69,7 +68,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['is_ajax']) ? $settings['is_ajax'] : 0,
   );
 
-  $form['block_settings']['ajaxblocks']['is_late'] = array(
+  $form['ajaxblocks']['is_late'] = array(
     '#type' => 'radios',
     '#title' => t('When to load the block'),
     '#options' => array(
@@ -78,10 +77,10 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     ),
     '#default_value' => isset($settings['is_late']) ? $settings['is_late'] : 0,
   );
-  $form['block_settings']['ajaxblocks']['is_late'][0]['#description'] = t('Will load block as soon as the page is loaded.');
-  $form['block_settings']['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until the block is revealed in the viewport.');
+  $form['ajaxblocks']['is_late'][0]['#description'] = t('Will load block as soon as the page is loaded.');
+  $form['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until the block is revealed in the viewport.');
 
-  $form['block_settings']['ajaxblocks']['delay'] = array(
+  $form['ajaxblocks']['delay'] = array(
     '#type' => 'number',
     '#min' => 0,
     '#title' => t('Time in seconds to wait before block loading'),
@@ -89,7 +88,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['delay']) ? intval($settings['delay']) : 0,
   );
 
-  $form['block_settings']['ajaxblocks']['reload'] = array(
+  $form['ajaxblocks']['reload'] = array(
     '#type' => 'select',
     '#title' => t('Reload'),
     '#description' => t('Choose to reload the block every few seconds.'),
@@ -97,7 +96,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['reload']) ? $settings['reload'] : 0,
   );
 
-  $form['block_settings']['ajaxblocks']['manual'] = array(
+  $form['ajaxblocks']['manual'] = array(
     '#type' => 'checkbox',
     '#title' => t('Renew content manually'),
     '#description' => t('When checked, the content of this block may be renew manually by clicking a button in the block header.'),
@@ -106,7 +105,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
 
   $all_roles = user_roles();
 
-  $form['block_settings']['ajaxblocks']['cached_roles'] = array(
+  $form['ajaxblocks']['cached_roles'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Load the block on cached pages for these roles only'),
     '#description' => t('Only anonymous role is necessary to be selected for most cases.'),
@@ -114,7 +113,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['cached_roles']) ? $settings['cached_roles'] : array('anonymous'),
   );
 
-  $form['block_settings']['ajaxblocks']['uncached_roles'] = array(
+  $form['ajaxblocks']['uncached_roles'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Load the block on uncached pages for these roles only'),
     '#description' => t("Don't select any role unless you use authcache module or want to load this block via AJAX even on uncached pages."),
@@ -122,7 +121,7 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['uncached_roles']) ? $settings['uncached_roles'] : array(),
   );
 
-  $form['#submit'][] = 'ajaxblocks_save_settings';
+  array_unshift($form['#submit'], 'ajaxblocks_save_settings');
 }
 
 /**
@@ -130,97 +129,26 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
  * Saves AJAX settings for the block.
  */
 function ajaxblocks_save_settings($form, &$form_state) {
-  if (!isset($form_state['values']['block_settings'])) {
+  if (!isset($form_state['values'])) {
     return;
   }
 
-  /* @var Layout $layout */
-  $layout = &$form_state['layout'];
-
-  $settings = $form_state['values']['block_settings']['ajaxblocks'];
-
-  $settings['class_name'] = get_class($form_state['block']);
-  $settings['module'] = $form_state['block']->module;
-  $settings['delta'] = $form_state['block']->delta;
-  $settings['uuid'] = isset($form_state['block']->uuid) ? $form_state['block']->uuid : '';
-  $block_id = $settings['module'] . ':' . $settings['delta'] . ':' . $settings['uuid'];
-  $settings['layout'] = $layout->name;
-
-  tempstore_set('ajaxblock', $block_id, $settings, 604800);
-}
-
-/**
- * Implements hook_form_FORM_ID_alter().
- */
-function ajaxblocks_form_layout_content_form_alter(&$form, &$form_state) {
-  $form['actions']['submit']['#submit'][] = 'ajaxblocks_layout_content_form_submit';
-}
-
-/**
- * Submit handler
- *
- * @see ajaxblocks_form_layout_content_form_alter()
- */
-function ajaxblocks_layout_content_form_submit($form, &$form_state) {
-  $config = config('ajaxblocks.settings');
-
-  /* @var Layout $layout */
-  $layout = &$form_state['layout'];
-
-  $layout_block_uuids = array_keys($layout->content);
-
-  $layout_temp = tempstore_get('layout.layout', $layout->name);
-
-  if (!$layout_temp) {
-    foreach ($layout->content as $uuid => $block) {
-      $block_id = $block->plugin . ':' . $uuid;
-      $block_temp_settings = tempstore_get('ajaxblock', $block_id);
-      if ($block_temp_settings) {
-        if (!empty($block_temp_settings['is_ajax'])) {
-          $config->set($block_id, $block_temp_settings);
-        }
-        else {
-          $config->clear($block_id);
-        }
-        tempstore_clear('ajaxblock', $block_id);
-      }
-    }
-
-    $data = $config->getData();
-    foreach ($data as $block_id => $block_settings) {
-      if (isset($block_settings['layout']) && $block_settings['layout'] == $layout->name) {
-        // Remove any blocks that are no longer in the layout.
-        if (!in_array($block_settings['uuid'], $layout_block_uuids)) {
-          $config->clear($block_id);
-        }
-      }
-    }
-
-    $config->save();
-  }
-}
-
-/**
- * Returns TRUE if the block is configured to be loaded via AJAX.
- * Block specific settings are also returned.
- *
- * @param string $block_id
- * @param array $settings
- *
- * @return bool
- */
-function ajaxblocks_is_ajax($block_id, &$settings) {
-  static $ajax_blocks = NULL;
-
-  if (is_null($ajax_blocks)) {
-    $ajax_blocks = config_get('ajaxblocks.settings');
-  }
-  if (array_key_exists($block_id, $ajax_blocks)) {
-    $settings = $ajax_blocks[$block_id];
-    return TRUE;
-  }
   $settings = array();
-  return FALSE;
+  if (isset($form_state['block']->settings['ajaxblocks'])) {
+    $settings = $form_state['block']->settings['ajaxblocks'];
+  }
+
+  if (($form_state['values']['ajaxblocks']['is_ajax'] == 0)) {
+    // Remove all block settings if disabled.
+    $form_state['block']->settings['ajaxblocks'] = array();
+  }
+  else {
+    if (is_null($settings)) {
+      $settings = array();
+    }
+
+    $form_state['block']->settings['ajaxblocks'] = $form_state['values']['ajaxblocks'];
+  }
 }
 
 /**
@@ -332,9 +260,11 @@ function ajaxblocks_page_cacheable() {
  */
 function ajaxblocks_preprocess_block(&$variables) {
   $id = $variables['block']->module . ':' . $variables['block']->delta . ':' . $variables['block']->uuid;
-  $settings = array();
-  if (!ajaxblocks_is_ajax($id, $settings)) {
+  if (empty($variables['block']->settings['ajaxblocks']['is_ajax'])) {
     return;
+  }
+  else {
+    $settings = $variables['block']->settings['ajaxblocks'];
   }
 
   $current_user_rids = $GLOBALS['user']->roles;
@@ -369,7 +299,7 @@ function ajaxblocks_preprocess_block(&$variables) {
       'hx-trigger' => implode(', ', $trigger_vals),
       'hx-vals' => json_encode(array(
         'block_id' => $id,
-        'block_class_name' => $settings['class_name'],
+        'block_class_name' => get_class($variables['block']),
       )),
     ),
   );
