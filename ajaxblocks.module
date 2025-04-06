@@ -42,8 +42,8 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
 
   $form['block_settings']['ajaxblocks'] = array(
     '#type' => 'fieldset',
-    '#title' => t('AJAX settings'),
-    '#description' => t('The settings for loading the block via AJAX request made after the page loading. This method is used for anonymous user only, and the whole page must be cached.'),
+    '#title' => t('Renew content settings'),
+    '#description' => t('The settings for renewing the block content via HTMX.'),
     '#weight' => 60,
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
@@ -97,6 +97,13 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
     '#default_value' => isset($settings['reload']) ? $settings['reload'] : 0,
   );
 
+  $form['block_settings']['ajaxblocks']['manual'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Renew content manually'),
+    '#description' => t('When checked, the content of this block may be renew manually by clicking a button in the block header.'),
+    '#default_value' => isset($settings['manual']) ? $settings['manual'] : 0,
+  );
+
   $all_roles = user_roles();
 
   $form['block_settings']['ajaxblocks']['cached_roles'] = array(
@@ -139,12 +146,7 @@ function ajaxblocks_save_settings($form, &$form_state) {
   $block_id = $settings['module'] . ':' . $settings['delta'] . ':' . $settings['uuid'];
   $settings['layout'] = $layout->name;
 
-  if (!empty($settings['is_ajax'])) {
-    tempstore_set('ajaxblock', $block_id, $settings, 604800);
-  }
-  else {
-    tempstore_clear('ajaxblock', $block_id);
-  }
+  tempstore_set('ajaxblock', $block_id, $settings, 604800);
 }
 
 /**
@@ -174,7 +176,12 @@ function ajaxblocks_layout_content_form_submit($form, &$form_state) {
       $block_id = $block->plugin . ':' . $uuid;
       $block_temp_settings = tempstore_get('ajaxblock', $block_id);
       if ($block_temp_settings) {
-        $config->set($block_id, $block_temp_settings);
+        if (!empty($block_temp_settings['is_ajax'])) {
+          $config->set($block_id, $block_temp_settings);
+        }
+        else {
+          $config->clear($block_id);
+        }
         tempstore_clear('ajaxblock', $block_id);
       }
     }
@@ -353,14 +360,30 @@ function ajaxblocks_preprocess_block(&$variables) {
     $trigger_vals[] = 'every ' . $settings['reload'] . 's';
   }
 
-  $variables['classes'][] = 'ajaxblocks';
-  $variables['attributes']['hx-get'] = '/ajaxblocks';
-  $variables['attributes']['hx-target'] = 'find .block-content';
-  $variables['attributes']['hx-trigger'] = implode(', ', $trigger_vals);
-  $variables['attributes']['hx-vals'] = json_encode(array(
-    'block_id' => $id,
-    'block_class_name' => $settings['class_name'],
-  ));
+  $build['htmx'] = array(
+    '#type' => 'container',
+    '#attributes' => array(
+      'class' => array('ajaxblocks'),
+      'hx-get' => '/ajaxblocks',
+      'hx-target' => 'next .block-content',
+      'hx-trigger' => implode(', ', $trigger_vals),
+      'hx-vals' => json_encode(array(
+        'block_id' => $id,
+        'block_class_name' => $settings['class_name'],
+      )),
+    ),
+  );
+
+  if ($settings['manual']) {
+    $build['htmx']['#attributes']['hx-trigger'] .= ', click';
+    $build['htmx']['manual_link'] = array(
+      '#type' => 'submit',
+      '#value' => t('Refresh')
+    );
+  }
+
+  $variables['title_suffix'] = backdrop_render($build);
+
   // Add an indicator. Need to replace the content since the point is to show
   // fresh content and not the default, possibly cached, content.
   $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content']['#markup'] . '</noscript>';
