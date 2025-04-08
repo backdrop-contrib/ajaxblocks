@@ -21,101 +21,127 @@ function ajaxblocks_menu() {
 }
 
 /**
- * Implements hook_config_info().
- */
-function ajaxblocks_config_info() {
-  $prefixes['ajaxblocks.settings'] = array(
-    'label' => t('Ajax Blocks settings'),
-    'group' => t('Configuration'),
-  );
-  return $prefixes;
-}
-
-/**
  * Implements hook_form_FORM_ID_alter().
  * Adds AJAX settings to the block configure page.
  */
 function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state) {
-  // Retrieve current setting for this block.
-  $block = $form_state['block'];
-  $settings = config_get('ajaxblocks.settings', $block->module . ':' . $block->delta . ':' . $block->uuid);
-
-  $form['block_settings']['ajaxblocks'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('AJAX settings'),
-    '#description' => t('The settings for loading the block via AJAX request made after the page loading. This method is used for anonymous user only, and the whole page must be cached.'),
-    '#weight' => 60,
-    '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
-    '#group' => 'visibility',
+  $form['ajaxblocks'] = array(
+    '#type' => 'details',
+    '#summary' => t('AJAX settings'),
+    '#details' => t('The settings for renewing the block content via AJAX.'),
+    '#tree' => TRUE,
   );
 
+  if (($form_state['block']->module == 'system' && $form_state['block']->delta == 'main')) {
+    $form['ajaxblocks']['no'] = array(
+      '#type' => 'markup',
+      '#markup' => t('The main page content block cannot be refreshed.'),
+    );
+    return;
+  }
+
+  $settings = array();
+  if (isset($form_state['block']->settings['ajaxblocks'])) {
+    $settings = $form_state['block']->settings['ajaxblocks'];
+  }
+
   if (module_exists('authcache')) {
-    $form['block_settings']['ajaxblocks']['warning'] = array(
+    $form['ajaxblocks']['warning'] = array(
       '#type' => 'markup',
       '#value' => t('Authcache module is installed. Please check <a href="@settings">settings</a> and make sure it does not cache AJAX requests to page (Backdrop path) "ajaxblocks".',
         array('@settings' => url('admin/config/development/performance/authcache'))),
     );
   }
 
-  $form['block_settings']['ajaxblocks']['is_ajax'] = array(
-    '#type' => 'radios',
-    '#title' => t('Load block via AJAX'),
-    '#description' => t("Select 'yes' if this block has dynamic content and isn't displayed correctly on cached pages."),
-    '#options' => array(
-      0 => t('No'),
-      1 => t('Yes'),
-    ),
-    '#default_value' => isset($settings['is_ajax']) ? $settings['is_ajax'] : 0,
+  $form['ajaxblocks']['on_load'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('On page load'),
+    '#description' => t('When checked, the content of this block will be refreshed every time the page loads. This will load uncached content.'),
+    '#default_value' => isset($settings['on_load']) ? $settings['on_load'] : 0,
   );
 
-  $form['block_settings']['ajaxblocks']['is_late'] = array(
+  $form['ajaxblocks']['delay'] = array(
     '#type' => 'radios',
     '#title' => t('When to load the block'),
     '#options' => array(
       0 => t('As soon as possible'),
       1 => t('When block is in view'),
     ),
-    '#default_value' => isset($settings['is_late']) ? $settings['is_late'] : 0,
+    '#default_value' => isset($settings['delay']) ? $settings['delay'] : 0,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="ajaxblocks[on_load]"]' => array('checked' => TRUE),
+      ),
+    ),
   );
-  $form['block_settings']['ajaxblocks']['is_late'][0]['#description'] = t('Will load block as soon as the page is loaded.');
-  $form['block_settings']['ajaxblocks']['is_late'][1]['#description'] = t('Will load block will wait until the block is revealed in the viewport.');
+  $form['ajaxblocks']['delay'][0]['#description'] = t('Will load block as soon as the page is loaded.');
+  $form['ajaxblocks']['delay'][1]['#description'] = t('Will load block will wait until the block is revealed in the viewport.');
 
-  $form['block_settings']['ajaxblocks']['delay'] = array(
+  $form['ajaxblocks']['delay_time'] = array(
     '#type' => 'number',
     '#min' => 0,
     '#title' => t('Time in seconds to wait before block loading'),
     '#description' => t('You can further defer block loading by a set time.'),
-    '#default_value' => isset($settings['delay']) ? intval($settings['delay']) : 0,
+    '#default_value' => isset($settings['delay_time']) ? intval($settings['delay_time']) : 0,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="ajaxblocks[on_load]"]' => array('checked' => TRUE),
+      ),
+    ),
   );
 
-  $form['block_settings']['ajaxblocks']['reload'] = array(
-    '#type' => 'select',
+  $form['ajaxblocks']['reload'] = array(
+    '#type' => 'checkbox',
     '#title' => t('Reload'),
     '#description' => t('Choose to reload the block every few seconds.'),
-    '#options' => array(0 => t('Never')) + backdrop_map_assoc(array(5, 10, 20, 60, 300, 1800, 3600), 'format_interval'),
     '#default_value' => isset($settings['reload']) ? $settings['reload'] : 0,
+  );
+  $form['ajaxblocks']['reload_time'] = array(
+    '#type' => 'number',
+    '#min' => 1,
+    '#title' => t('Time in seconds between loading'),
+    '#default_value' => isset($settings['reload_time']) ? intval($settings['reload_time']) : 5,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="ajaxblocks[reload]"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['ajaxblocks']['manual_reload'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Renew content manually'),
+    '#description' => t('When checked, the content of this block may be renew manually by clicking a button in the block header.'),
+    '#default_value' => isset($settings['manual_reload']) ? $settings['manual_reload'] : 0,
+  );
+
+  $form['ajaxblocks']['roles'] = array(
+    '#type' => 'details',
+    '#summary' => t('Roles'),
+    '#details' => t('Restrict which roles for which the block will refresh.'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
   );
 
   $all_roles = user_roles();
 
-  $form['block_settings']['ajaxblocks']['cached_roles'] = array(
+  $form['ajaxblocks']['roles']['cached_roles'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Load the block on cached pages for these roles only'),
     '#description' => t('Only anonymous role is necessary to be selected for most cases.'),
     '#options' => $all_roles,
-    '#default_value' => isset($settings['cached_roles']) ? $settings['cached_roles'] : array('anonymous'),
+    '#default_value' => isset($settings['roles']['cached_roles']) ? $settings['roles']['cached_roles'] : array('anonymous', 'authenticated'),
   );
 
-  $form['block_settings']['ajaxblocks']['uncached_roles'] = array(
+  $form['ajaxblocks']['roles']['uncached_roles'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Load the block on uncached pages for these roles only'),
     '#description' => t("Don't select any role unless you use authcache module or want to load this block via AJAX even on uncached pages."),
     '#options' => $all_roles,
-    '#default_value' => isset($settings['uncached_roles']) ? $settings['uncached_roles'] : array(),
+    '#default_value' => isset($settings['roles']['uncached_roles']) ? $settings['roles']['uncached_roles'] : array('anonymous', 'authenticated'),
   );
 
-  $form['#submit'][] = 'ajaxblocks_save_settings';
+  array_unshift($form['#submit'], 'ajaxblocks_save_settings');
 }
 
 /**
@@ -123,97 +149,28 @@ function ajaxblocks_form_layout_block_configure_form_alter(&$form, &$form_state)
  * Saves AJAX settings for the block.
  */
 function ajaxblocks_save_settings($form, &$form_state) {
-  if (!isset($form_state['values']['block_settings'])) {
+  if (!isset($form_state['values'])) {
     return;
   }
 
-  /* @var Layout $layout */
-  $layout = &$form_state['layout'];
+  $settings = array();
+  if (isset($form_state['block']->settings['ajaxblocks'])) {
+    $settings = $form_state['block']->settings['ajaxblocks'];
+  }
 
-  $settings = $form_state['values']['block_settings']['ajaxblocks'];
-
-  $settings['class_name'] = get_class($form_state['block']);
-  $settings['module'] = $form_state['block']->module;
-  $settings['delta'] = $form_state['block']->delta;
-  $settings['uuid'] = isset($form_state['block']->uuid) ? $form_state['block']->uuid : '';
-  $block_id = $settings['module'] . ':' . $settings['delta'] . ':' . $settings['uuid'];
-  $settings['layout'] = $layout->name;
-
-  if (!empty($settings['is_ajax'])) {
-    tempstore_set('ajaxblock', $block_id, $settings, 604800);
+  if (($form_state['values']['ajaxblocks']['on_load'] == 0 &&
+    $form_state['values']['ajaxblocks']['reload'] == 0 &&
+    $form_state['values']['ajaxblocks']['manual_reload'] == 0)) {
+    // Remove all block settings if disabled.
+    $form_state['block']->settings['ajaxblocks'] = array();
   }
   else {
-    tempstore_clear('ajaxblock', $block_id);
-  }
-}
-
-/**
- * Implements hook_form_FORM_ID_alter().
- */
-function ajaxblocks_form_layout_content_form_alter(&$form, &$form_state) {
-  $form['actions']['submit']['#submit'][] = 'ajaxblocks_layout_content_form_submit';
-}
-
-/**
- * Submit handler
- *
- * @see ajaxblocks_form_layout_content_form_alter()
- */
-function ajaxblocks_layout_content_form_submit($form, &$form_state) {
-  $config = config('ajaxblocks.settings');
-
-  /* @var Layout $layout */
-  $layout = &$form_state['layout'];
-
-  $layout_block_uuids = array_keys($layout->content);
-
-  $layout_temp = tempstore_get('layout.layout', $layout->name);
-
-  if (!$layout_temp) {
-    foreach ($layout->content as $uuid => $block) {
-      $block_id = $block->plugin . ':' . $uuid;
-      $block_temp_settings = tempstore_get('ajaxblock', $block_id);
-      if ($block_temp_settings) {
-        $config->set($block_id, $block_temp_settings);
-        tempstore_clear('ajaxblock', $block_id);
-      }
+    if (is_null($settings)) {
+      $settings = array();
     }
 
-    $data = $config->getData();
-    foreach ($data as $block_id => $block_settings) {
-      if (isset($block_settings['layout']) && $block_settings['layout'] == $layout->name) {
-        // Remove any blocks that are no longer in the layout.
-        if (!in_array($block_settings['uuid'], $layout_block_uuids)) {
-          $config->clear($block_id);
-        }
-      }
-    }
-
-    $config->save();
+    $form_state['block']->settings['ajaxblocks'] = $form_state['values']['ajaxblocks'];
   }
-}
-
-/**
- * Returns TRUE if the block is configured to be loaded via AJAX.
- * Block specific settings are also returned.
- *
- * @param string $block_id
- * @param array $settings
- *
- * @return bool
- */
-function ajaxblocks_is_ajax($block_id, &$settings) {
-  static $ajax_blocks = NULL;
-
-  if (is_null($ajax_blocks)) {
-    $ajax_blocks = config_get('ajaxblocks.settings');
-  }
-  if (array_key_exists($block_id, $ajax_blocks)) {
-    $settings = $ajax_blocks[$block_id];
-    return TRUE;
-  }
-  $settings = array();
-  return FALSE;
 }
 
 /**
@@ -325,47 +282,74 @@ function ajaxblocks_page_cacheable() {
  */
 function ajaxblocks_preprocess_block(&$variables) {
   $id = $variables['block']->module . ':' . $variables['block']->delta . ':' . $variables['block']->uuid;
-  $settings = array();
-  if (!ajaxblocks_is_ajax($id, $settings)) {
+  if (empty($variables['block']->settings['ajaxblocks'])) {
+    return;
+  }
+
+  $settings = $variables['block']->settings['ajaxblocks'];
+
+  if (empty($settings['on_load']) && empty($settings['reload']) && empty($settings['manual_reload'])) {
     return;
   }
 
   $current_user_rids = $GLOBALS['user']->roles;
   if ((ajaxblocks_page_cacheable())) {
-    if (count(array_intersect($current_user_rids, $settings['cached_roles'])) == 0) {
+    if (count(array_intersect($current_user_rids, $settings['roles']['cached_roles'])) == 0) {
       return;
     }
   }
   else {
-    if (count(array_intersect($current_user_rids, $settings['uncached_roles'])) == 0) {
+    if (count(array_intersect($current_user_rids, $settings['roles']['uncached_roles'])) == 0) {
       return;
     }
   }
 
   $trigger_vals = array();
-  $delay = !empty($settings['delay']) ? ' delay:' . $settings['delay'] . 's' : '';
-  $trigger_vals[] = 'load' . $delay;
-  if ($settings['is_late'] == 1) {
-    $trigger_vals[] = 'revealed' . $delay;
+
+  if ($settings['on_load'] == 1) {
+    $delay_time = !empty($settings['delay_time']) ? ' delay:' . $settings['delay_time'] . 's' : '';
+    $trigger_vals[] = 'load' . $delay_time;
+    if ($settings['delay'] == 1) {
+      $trigger_vals[] = 'revealed' . $delay_time;
+    }
   }
 
   if ($settings['reload']) {
-    $trigger_vals[] = 'every ' . $settings['reload'] . 's';
+    $trigger_vals[] = 'every ' . $settings['reload_time'] . 's';
   }
 
-  $variables['classes'][] = 'ajaxblocks';
-  $variables['attributes']['hx-get'] = '/ajaxblocks';
-  $variables['attributes']['hx-target'] = 'find .block-content';
-  $variables['attributes']['hx-trigger'] = implode(', ', $trigger_vals);
-  $variables['attributes']['hx-vals'] = json_encode(array(
-    'block_id' => $id,
-    'block_class_name' => $settings['class_name'],
-  ));
-  // Add an indicator. Need to replace the content since the point is to show
-  // fresh content and not the default, possibly cached, content.
-  $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content']['#markup'] . '</noscript>';
-  $throbber = '<img class="ajaxblocks-throbber js-show" src="'. backdrop_get_path('module', 'ajaxblocks') . '/images/throbber.svg"/>';
-  $variables['content']['#markup'] = $noscript . $throbber;
+  $build['htmx'] = array(
+    '#type' => 'container',
+    '#attributes' => array(
+      'class' => array('ajaxblocks'),
+      'hx-get' => '/ajaxblocks',
+      'hx-target' => 'next .block-content',
+      'hx-vals' => json_encode(array(
+        'block_id' => $id,
+        'block_class_name' => get_class($variables['block']),
+      )),
+    ),
+  );
+
+  if ($settings['manual_reload']) {
+    $trigger_vals[] = 'click';
+    $build['htmx']['manual_link'] = array(
+      '#type' => 'button',
+      '#value' => t('Refresh')
+    );
+  }
+
+  $build['htmx']['#attributes']['hx-trigger'] = implode(', ', $trigger_vals);
+
+  $variables['title_suffix'] = backdrop_render($build);
+
+  if ($settings['on_load'] == 1) {
+    // Add an indicator. Need to replace the content since the point is to show
+    // fresh content and not the default, possibly cached, content.
+    $noscript = '<script type="text/javascript"></script><noscript>' . $variables['content']['#markup'] . '</noscript>';
+    $throbber = '<img class="ajaxblocks-throbber js-show" src="'. backdrop_get_path('module', 'ajaxblocks') . '/images/throbber.svg"/>';
+    $variables['content']['#markup'] = $noscript . $throbber;
+  }
 }
 
 /**
