@@ -180,7 +180,6 @@ function ajaxblocks_save_settings($form, &$form_state) {
  */
 function ajaxblocks_ajax_handler() {
   $block_id = $_GET['block_id'] ?? NULL;
-  $class_name = $_GET['block_class_name'] ?? NULL;
   if (!$block_id) {
     return '';
   }
@@ -190,62 +189,55 @@ function ajaxblocks_ajax_handler() {
   // Disable page caching.
   backdrop_page_is_cacheable(FALSE);
 
-  $parts = explode(":", $block_id);
-  $block = new stdClass();
-  $block->module = $parts[0];
-  $block->delta = $parts[1];
-  $infos = module_invoke($block->module, 'block_info');
-  $block = _ajaxblocks_block($block->module, $block->delta, $infos[$block->delta]);
-  if ($class_name == 'BlockLegacy') {
-    $block = new BlockLegacy($block->module . ':' . $block->delta, array());
-  }
-  else {
-    $block = new $block->class($block->module . ':' . $block->delta, array());
-  }
-  $block->prepare();
+  list($module, $delta, $uuid) = explode(':', $block_id);
 
-  $block_content = $block->getContent();
-
-  if (is_string($block_content)) {
-    $block_content = array(
-      '#markup' => $block_content,
-    );
-  }
-
-  $data = array(
-    'title' => $block->getTitle(),
-    'content' => $block_content,
-  );
-
-  // Allow modules to modify the block before it is viewed, via either
-  // hook_block_view_alter() or hook_block_view_MODULE_DELTA_alter().
-  backdrop_alter(array('block_view', "block_view_{$block->module}_" . str_replace('-', '_', $block->delta)), $data, $block);
+  $block = layout_create_handler('block', "$module:$delta", array('uuid' => $uuid));
+  $block->uuid = $uuid;
+  $build = ajaxblocks_get_render_block($block);
 
   // Only updating the block content, ignore the title.
-  return backdrop_render($data['content']);
+  unset($build['#content']->title);
+  return backdrop_render($build);
 }
 
 /**
- * Helper to create a pretty block object from a moddelta.
+ * Generate an array for rendering a given block.
  *
- * @param string $module
- * @param string $delta
- * @param array|null $info
+ * @param Block $block
  *
- * @return object
+ * @return array
+ *   An array as expected by backdrop_render().
+ *
+ * @todo remove if a similar generic function appears in core.
+ * @see Issue #6893
  */
-function _ajaxblocks_block($module, $delta, $info = NULL) {
-  if (!$info) {
-    $infos = module_invoke($module, 'block_info');
-    $info = @$infos[$delta];
+function ajaxblocks_get_render_block(Block $block) {
+  $block->prepare();
+  $content = $block->getContent();
+
+  $title = '';
+  if ($block->settings['title_display'] !== LAYOUT_TITLE_NONE) {
+    $title = $block->getTitle();
   }
 
-  if ($info) {
-    $info = compact('module', 'delta') + $info;
-    $info['info'] = trim($info['info']);
+  $data = array(
+    'title' => $title,
+    'content' => $content,
+  );
 
-    return (object) $info;
-  }
+  // Allow altering of the title and content by other modules.
+  backdrop_alter(array('block_view', 'block_view_' . $block->module . '_' . str_replace('-', '_', $block->delta)), $data, $block);
+
+  $content = (object) array(
+    'title' => $data['title'],
+    'content' => $data['content'],
+  );
+
+  return array(
+    '#theme' => 'block',
+    '#content' => $content,
+    '#block' => $block,
+  );
 }
 
 /**
@@ -326,7 +318,6 @@ function ajaxblocks_preprocess_block(&$variables) {
       'hx-target' => 'next .block-content',
       'hx-vals' => json_encode(array(
         'block_id' => $id,
-        'block_class_name' => get_class($variables['block']),
       )),
     ),
   );
